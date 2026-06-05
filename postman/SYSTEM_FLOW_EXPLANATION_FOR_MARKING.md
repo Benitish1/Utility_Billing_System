@@ -21,8 +21,8 @@ Main business objects:
 - `Customer` - customer profile connected to a user
 - `Meter` - physical water or electricity meter assigned to a customer
 - `MeterReading` - monthly reading captured from a meter
-- `Tariff` - price rules used to calculate bills, including VAT and penalty percentage
-- `Bill` - generated charge for a customer based on reading and tariff, including tax and penalty amount
+- `Tariff` - price rules used to calculate bills
+- `Bill` - generated charge for a customer based on reading and tariff
 - `Payment` - money paid against a bill
 - `Notification` - message sent or stored for the customer
 - `AuditLog` - record of important actions done in the system
@@ -60,7 +60,7 @@ The admin can:
 - Activate or deactivate users
 - Create and manage customers
 - Create and manage meters
-- Create and manage tariffs with price per unit, fixed charge, VAT percentage, and penalty percentage
+- Create and manage tariffs
 - Generate bills if needed
 - Record payments if needed
 - View audit logs
@@ -71,7 +71,7 @@ How admin fits in the flow:
 2. Admin creates or verifies users.
 3. Admin creates a customer profile.
 4. Admin assigns a meter to the customer.
-5. Admin creates tariffs for water or electricity, including the VAT rate and penalty rate.
+5. Admin creates tariffs for water or electricity.
 6. Other roles then continue the operational flow.
 
 Important explanation:
@@ -145,41 +145,18 @@ How finance fits in the flow:
 8. When the customer pays, finance records the payment.
 9. The bill status changes depending on the amount paid.
 
-Normal bill generation:
+Bill calculation uses:
 
 ```text
 amountBeforeTax = unitsConsumed * pricePerUnit + fixedCharge
 taxAmount = amountBeforeTax * VAT percentage
-penaltyAmount = 0.00
 totalAmount = amountBeforeTax + taxAmount + penaltyAmount
-```
-
-Penalty backend:
-
-- The tariff stores `penaltyPercentage`, for example `5.00`.
-- The bill stores `penaltyAmount` separately from tax and base consumption.
-- At bill generation time, the backend sets `penaltyAmount` to `0.00` because the bill is new.
-- After the bill due date, `ADMIN` or `FINANCE` can apply a penalty.
-- The endpoint is `POST /api/bills/{billId}/apply-penalty`.
-- For demo before the due date, use `POST /api/bills/{billId}/apply-penalty?force=true`.
-- The backend calculates `penaltyAmount = outstandingBalance * penaltyPercentage / 100`.
-- It updates `totalAmount`, `outstandingBalance`, and changes bill status to `OVERDUE`.
-- It sends an email to the customer and records an audit log.
-
-How to explain to a marker:
-
-```text
-The admin configures penalty percentage when creating tariffs.
-Finance or admin applies the penalty to an overdue unpaid bill.
-The backend uses the active tariff penalty percentage and the bill outstanding balance to calculate the penalty.
-Then it updates penalty amount, total amount, outstanding balance, and changes the bill status to OVERDUE.
 ```
 
 Bill statuses:
 
 - `PENDING` - no payment yet
 - `PARTIALLY_PAID` - some amount has been paid
-- `OVERDUE` - due date passed and penalty has been applied
 - `PAID` - full amount has been paid
 
 Important explanation:
@@ -234,15 +211,13 @@ Admin assigns meter to customer
         |
 Admin creates active tariff
         |
-Tariff includes price, fixed charge, VAT rate, and penalty rate
-        |
 Operator captures monthly meter reading
         |
 System calculates units consumed
         |
 Finance generates bill from reading
         |
-System calculates total amount using tariff, VAT, and penalty amount
+System calculates total amount using tariff
         |
 System sends bill email and notification to customer
         |
@@ -277,9 +252,7 @@ Explanation:
 - A customer can have one or more meters.
 - A meter can have many monthly readings.
 - Each reading can generate one bill only.
-- A tariff controls price, VAT, and penalty rate for bill calculation.
 - A bill can have one or more payments.
-- A bill stores the penalty amount separately from the tax amount.
 - Notifications belong to the customer.
 - Audit logs track important actions.
 
@@ -395,7 +368,7 @@ The system works like this:
 ```text
 Admin sets up the system.
 Operator captures consumption.
-Finance generates bills with VAT and penalty fields, then records payments.
+Finance bills and records payments.
 Customer views their own billing information.
 Notifications inform the customer.
 Audit logs track all important actions.

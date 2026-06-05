@@ -1,0 +1,180 @@
+﻿// ============================================================
+// FILE 2A â€” SYSTEM ARCHITECTURE (Mermaid)
+// Paste into: https://mermaid.live  OR  GitHub / Notion / draw.io
+// ============================================================
+
+```mermaid
+flowchart TB
+    subgraph Clients["Client Layer"]
+        SWAGGER["Swagger UI / Postman"]
+        CUSTOMER_APP["Customer Portal (future)"]
+        STAFF_APP["Staff Applications (future)"]
+    end
+
+    subgraph API["Spring Boot Application Layer"]
+        CTRL["REST Controllers\n(Auth, User, Customer, Meter,\nReading, Tariff, Bill, Payment, Notification)"]
+        SEC["Spring Security + JWT Filter\n(Role-Based Authorization)"]
+        VALID["Jakarta Validation\n(Email, Password, Phone, Business Rules)"]
+        EXC["Global Exception Handler\n(ErrorResponse JSON)"]
+        SWAG["SpringDoc OpenAPI\n(Swagger Documentation)"]
+    end
+
+    subgraph Service["Service Layer"]
+        AUTH_SVC["AuthService\n(Signup, Login, OTP, Refresh, Logout)"]
+        CUST_SVC["CustomerService"]
+        METER_SVC["MeterService"]
+        READ_SVC["MeterReadingService"]
+        TAR_SVC["TariffService"]
+        BILL_SVC["BillingService"]
+        PAY_SVC["PaymentService"]
+        NOTIF_SVC["NotificationService"]
+        MAIL_SVC["EmailService"]
+    end
+
+    subgraph Data["Data Access Layer"]
+        JPA["Spring Data JPA Repositories"]
+        ENT["JPA Entities / Hibernate"]
+    end
+
+    subgraph External["External Systems"]
+        PG[("PostgreSQL Database\n(Tables, Triggers, Stored Procedures)")]
+        SMTP["Gmail SMTP\n(OTP + Notifications)"]
+    end
+
+  SWAGGER --> CTRL
+  CUSTOMER_APP --> CTRL
+  STAFF_APP --> CTRL
+
+  CTRL --> SEC
+  SEC --> VALID
+  VALID --> EXC
+  CTRL --> SWAG
+
+  SEC --> AUTH_SVC
+  CTRL --> CUST_SVC
+  CTRL --> METER_SVC
+  CTRL --> READ_SVC
+  CTRL --> TAR_SVC
+  CTRL --> BILL_SVC
+  CTRL --> PAY_SVC
+  CTRL --> NOTIF_SVC
+
+  AUTH_SVC --> MAIL_SVC
+  BILL_SVC --> MAIL_SVC
+  PAY_SVC --> MAIL_SVC
+
+  AUTH_SVC --> JPA
+  CUST_SVC --> JPA
+  METER_SVC --> JPA
+  READ_SVC --> JPA
+  TAR_SVC --> JPA
+  BILL_SVC --> JPA
+  PAY_SVC --> JPA
+  NOTIF_SVC --> JPA
+
+  JPA --> ENT
+  ENT --> PG
+  MAIL_SVC --> SMTP
+
+  PG -.->|"Trigger: on bill insert\nâ†’ notification"| PG
+  PG -.->|"Procedure: on full payment\nâ†’ update bill + notification"| PG
+```
+
+// ============================================================
+// FILE 2B â€” SPRING BOOT FLOW DIAGRAM (Functionalities)
+// Paste separately into https://mermaid.live
+// ============================================================
+
+```mermaid
+flowchart TD
+    START([User / Staff Opens API]) --> AUTH_CHECK{Authenticated?}
+
+    AUTH_CHECK -->|No| PUBLIC["Public Endpoints\n/api/auth/signup\n/api/auth/login\n/api/auth/verify-otp\n/api/auth/resend-otp\n/api/auth/refresh-token"]
+    AUTH_CHECK -->|Yes| JWT["JWT Filter validates token\n+ checks blacklist"]
+
+    PUBLIC --> SIGNUP["Signup\nâ†’ validate email/password/phone\nâ†’ hash password\nâ†’ generate OTP\nâ†’ send email"]
+    SIGNUP --> VERIFY["Verify OTP\nâ†’ mark email verified"]
+    VERIFY --> LOGIN["Login\nâ†’ reject if unverified/inactive\nâ†’ issue access + refresh JWT"]
+
+    PUBLIC --> LOGIN
+    LOGIN --> ROLE{User Role?}
+
+    JWT --> ROLE
+
+    ROLE -->|ROLE_ADMIN| ADMIN_FLOW["Admin Functions"]
+    ROLE -->|ROLE_OPERATOR| OP_FLOW["Operator Functions"]
+    ROLE -->|ROLE_FINANCE| FIN_FLOW["Finance Functions"]
+    ROLE -->|ROLE_CUSTOMER| CUST_FLOW["Customer Functions"]
+
+    ADMIN_FLOW --> A1["Manage Users"]
+    ADMIN_FLOW --> A2["Configure Tariffs\n(versioned, future cycles)"]
+    ADMIN_FLOW --> A3["Manage Customers & Meters"]
+    ADMIN_FLOW --> A4["View All Bills & Payments"]
+
+    OP_FLOW --> O1["Capture Meter Reading\nâ†’ meter must be ACTIVE\nâ†’ current > previous\nâ†’ one reading per meter/month/year\nâ†’ auto-calc units consumed"]
+
+    FIN_FLOW --> F1["Generate Bill from Reading\nâ†’ customer must be ACTIVE\nâ†’ apply active tariff\nâ†’ calc VAT + penalty\nâ†’ unique bill number"]
+    FIN_FLOW --> F2["Record Payment\nâ†’ partial or full\nâ†’ prevent overpayment\nâ†’ update balance & status"]
+
+    CUST_FLOW --> C1["View Own Bills"]
+    CUST_FLOW --> C2["View Own Payments"]
+    CUST_FLOW --> C3["View Own Notifications"]
+
+    O1 --> BILL_GEN
+    F1 --> BILL_GEN["Bill Generation"]
+    BILL_GEN --> DB_TRIGGER["PostgreSQL Trigger\nAuto-insert notification\non bill creation"]
+    DB_TRIGGER --> EMAIL1["EmailService sends bill notification"]
+
+    F2 --> PAY_PROC["Payment Processing"]
+    PAY_PROC --> UPDATE_BILL["Update amount_paid\noutstanding_balance\nbill status"]
+    PAY_PROC --> DB_PROC["PostgreSQL Stored Procedure\nOn full payment:\nâ†’ set bill PAID\nâ†’ insert notification"]
+    DB_PROC --> EMAIL2["EmailService sends payment confirmation"]
+
+    LOGIN --> LOGOUT["Logout\nâ†’ blacklist JWT token"]
+    JWT --> ME["GET /api/auth/me\nCurrent logged-in user"]
+
+    style SIGNUP fill:#e8f4fd
+    style VERIFY fill:#e8f4fd
+    style LOGIN fill:#e8f4fd
+    style BILL_GEN fill:#fff3cd
+    style PAY_PROC fill:#d4edda
+    style DB_TRIGGER fill:#f8d7da
+    style DB_PROC fill:#f8d7da
+```
+
+// ============================================================
+// FILE 2C â€” ROLE ACCESS MATRIX (optional extra diagram)
+// ============================================================
+
+```mermaid
+flowchart LR
+    subgraph Roles
+        ADMIN["ROLE_ADMIN"]
+        OPERATOR["ROLE_OPERATOR"]
+        FINANCE["ROLE_FINANCE"]
+        CUSTOMER["ROLE_CUSTOMER"]
+    end
+
+    subgraph Endpoints
+        E1["Users & Tariffs"]
+        E2["Customers & Meters"]
+        E3["Meter Readings"]
+        E4["Bill Generation"]
+        E5["Payments"]
+        E6["Own Bills/Payments/Notifications"]
+        E7["Auth (public)"]
+    end
+
+    ADMIN --> E1
+    ADMIN --> E2
+    ADMIN --> E4
+    ADMIN --> E5
+    OPERATOR --> E3
+    FINANCE --> E4
+    FINANCE --> E5
+    CUSTOMER --> E6
+    E7 -.-> ADMIN
+    E7 -.-> OPERATOR
+    E7 -.-> FINANCE
+    E7 -.-> CUSTOMER
+```

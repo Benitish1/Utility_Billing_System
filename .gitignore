@@ -1,11 +1,9 @@
-# Build output
+﻿# Build output
 target/
-*.class
-*.jar
-*.war
-*.ear
+out/
+build/
 
-# Maven wrapper/runtime noise
+# Maven wrapper/cache generated files
 .mvn/wrapper/maven-wrapper.jar
 
 # IDE files
@@ -15,33 +13,43 @@ target/
 *.iws
 .vscode/
 
-# Logs
-*.log
-logs/
-
-# Local environment and secrets
-.env
-.env.*
-application-local.properties
-application-*.local.properties
-
-# OS generated files
+# OS files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Temporary files
+# Logs
+*.log
+logs/
+
+# Environment and local secrets
+.env
+.env.*
+*.env
+application-local.properties
+application-*.local.properties
+
+# Database exports and generated backups
+backups/
+*.dump
+*.backup
+*.sql.gz
+
+# Runtime/temp files
 *.tmp
 *.temp
 *.swp
 *.swo
 
-# Test reports and coverage
+# Java artifacts
+*.class
+*.jar
+*.war
+*.ear
+
+# Test reports
 surefire-reports/
 failsafe-reports/
-coverage/
-.coverage
 
-# Runtime uploads/cache
-uploads/
-cache/
+# Generated helper files
+dependency-reduced-pom.xml
