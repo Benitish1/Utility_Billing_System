@@ -32,6 +32,20 @@ public class BillController {
                 .body(ApiResponse.success("Bill generated successfully", billingService.generateBill(request)));
     }
 
+    @PostMapping("/{id}/resend-email")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCE')")
+    @Operation(summary = "Resend bill email", description = "Access: ROLE_ADMIN, ROLE_FINANCE. Resends the generated bill email to the customer without creating a duplicate bill.")
+    public ResponseEntity<ApiResponse<BillingDtos.BillResponse>> resendEmail(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Bill email resent successfully", billingService.resendBillEmail(id)));
+    }
+
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasRole('FINANCE')")
+    @Operation(summary = "Approve fully paid bill", description = "Access: ROLE_FINANCE only. Customer must pay the bill in full before finance approval.")
+    public ResponseEntity<ApiResponse<BillingDtos.BillResponse>> approve(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Bill approved successfully", billingService.approveBill(id)));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'FINANCE', 'CUSTOMER')")
     @Operation(summary = "Get bill by ID", description = "Access: ROLE_ADMIN, ROLE_FINANCE (all bills), ROLE_CUSTOMER (own bills only)")

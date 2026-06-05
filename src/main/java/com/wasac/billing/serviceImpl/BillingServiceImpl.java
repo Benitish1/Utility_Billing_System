@@ -131,6 +131,53 @@ public class BillingServiceImpl implements BillingService {
     }
 
     @Override
+    @Transactional
+    public BillingDtos.BillResponse resendBillEmail(Long id) {
+        Bill bill = findBill(id);
+        String message = AppUtils.buildNotificationMessage(
+                bill.getCustomer().getFullNames(),
+                bill.getBillingMonth(),
+                bill.getBillingYear(),
+                bill.getTotalAmount().toPlainString());
+
+        createFallbackNotification(bill, message);
+        emailService.sendNotificationEmail(bill.getCustomer().getEmail(), "Utility Bill Generated", message);
+        auditLogService.log("RESEND_BILL_EMAIL", "Bill", bill.getId(),
+                "Resent bill email " + bill.getBillNumber() + " to " + bill.getCustomer().getEmail());
+
+        return toResponse(bill);
+    }
+
+    @Override
+    @Transactional
+    public BillingDtos.BillResponse approveBill(Long id) {
+        Bill bill = findBill(id);
+
+        if (bill.getStatus() == BillStatus.APPROVED) {
+            throw new BusinessException("Bill is already approved");
+        }
+        if (bill.getOutstandingBalance().compareTo(BigDecimal.ZERO) > 0) {
+            throw new BusinessException("Bill cannot be approved before the customer clears the outstanding balance");
+        }
+        if (bill.getStatus() != BillStatus.PAID) {
+            throw new BusinessException("Only fully paid bills can be approved by finance");
+        }
+
+        bill.setStatus(BillStatus.APPROVED);
+        Bill saved = billRepository.save(bill);
+
+        String message = "Dear " + saved.getCustomer().getFullNames()
+                + ",\nYour bill " + saved.getBillNumber()
+                + " has been approved by finance. Thank you for your payment.";
+        createFallbackNotification(saved, message);
+        emailService.sendNotificationEmail(saved.getCustomer().getEmail(), "Utility Bill Approved", message);
+        auditLogService.log("APPROVE_BILL", "Bill", saved.getId(),
+                "Approved fully paid bill " + saved.getBillNumber());
+
+        return toResponse(saved);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public BillingDtos.BillResponse getById(Long id) {
         Bill bill = findBill(id);

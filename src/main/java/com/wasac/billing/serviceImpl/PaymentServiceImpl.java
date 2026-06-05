@@ -9,6 +9,8 @@ import com.wasac.billing.entity.User;
 import com.wasac.billing.enums.BillStatus;
 import com.wasac.billing.enums.NotificationStatus;
 
+import com.wasac.billing.enums.Role;
+import com.wasac.billing.exception.AccessDeniedException;
 import com.wasac.billing.exception.BusinessException;
 import com.wasac.billing.exception.ResourceNotFoundException;
 import com.wasac.billing.repository.BillRepository;
@@ -54,6 +56,9 @@ public class PaymentServiceImpl implements PaymentService {
         if (bill.getStatus() == BillStatus.PAID) {
             throw new BusinessException("Bill is already fully paid");
         }
+        if (bill.getStatus() == BillStatus.APPROVED) {
+            throw new BusinessException("Bill is already approved and cannot receive more payments");
+        }
         if (request.getAmountPaid().compareTo(bill.getOutstandingBalance()) > 0) {
             throw new BusinessException("Payment amount exceeds outstanding balance. Overpayment is not allowed");
         }
@@ -66,13 +71,14 @@ public class PaymentServiceImpl implements PaymentService {
             throw new BusinessException("Transaction reference already exists", HttpStatus.CONFLICT);
         }
 
-        User financeUser = SecurityUtils.getCurrentUser();
+        User currentUser = SecurityUtils.getCurrentUser();
+        assertCustomerCanPayOwnBill(currentUser, bill);
         Payment payment = Payment.builder()
                 .bill(bill)
                 .amountPaid(request.getAmountPaid())
                 .paymentMethod(request.getPaymentMethod())
                 .paymentDate(request.getPaymentDate())
-                .receivedBy(financeUser)
+                .receivedBy(currentUser)
                 .transactionReference(transactionRef)
                 .build();
         Payment saved = paymentRepository.save(payment);
@@ -95,6 +101,18 @@ public class PaymentServiceImpl implements PaymentService {
                         + ". Bill status is " + bill.getStatus());
 
         return toResponse(saved);
+    }
+
+    private void assertCustomerCanPayOwnBill(User currentUser, Bill bill) {
+        if (currentUser.getRole() != Role.ROLE_CUSTOMER) {
+            return;
+        }
+
+        Customer customer = customerRepository.findByUserId(currentUser.getId())
+                .orElseThrow(() -> new AccessDeniedException("No customer profile linked to your account"));
+        if (!bill.getCustomer().getId().equals(customer.getId())) {
+            throw new AccessDeniedException("Customers can only pay their own bills");
+        }
     }
 
     private void notifyFullPayment(Bill bill) {

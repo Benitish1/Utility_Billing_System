@@ -1,14 +1,20 @@
 package com.wasac.billing.controller;
 
 import com.wasac.billing.entity.Bill;
+import com.wasac.billing.entity.Notification;
 import com.wasac.billing.entity.Tariff;
 import com.wasac.billing.enums.BillStatus;
+import com.wasac.billing.enums.NotificationStatus;
 import com.wasac.billing.exception.BusinessException;
 import com.wasac.billing.exception.ResourceNotFoundException;
 import com.wasac.billing.repository.BillRepository;
+import com.wasac.billing.repository.NotificationRepository;
 import com.wasac.billing.repository.TariffRepository;
 import com.wasac.billing.service.AuditLogService;
 import com.wasac.billing.service.EmailService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,26 +32,32 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/bills")
+@Tag(name = "Billing", description = "Bill penalties and late-payment processing endpoints")
+@SecurityRequirement(name = "Bearer Authentication")
 public class PenaltyController {
 
     private final BillRepository billRepository;
     private final TariffRepository tariffRepository;
+    private final NotificationRepository notificationRepository;
     private final AuditLogService auditLogService;
     private final EmailService emailService;
 
     public PenaltyController(
             BillRepository billRepository,
             TariffRepository tariffRepository,
+            NotificationRepository notificationRepository,
             AuditLogService auditLogService,
             EmailService emailService) {
         this.billRepository = billRepository;
         this.tariffRepository = tariffRepository;
+        this.notificationRepository = notificationRepository;
         this.auditLogService = auditLogService;
         this.emailService = emailService;
     }
 
     @PostMapping("/{billId}/apply-penalty")
     @PreAuthorize("hasAnyRole('ADMIN', 'FINANCE')")
+    @Operation(summary = "Apply late-payment penalty", description = "Access: ROLE_ADMIN, ROLE_FINANCE. Applies one penalty after the due date, updates outstanding balance, and notifies the customer.")
     @Transactional
     public ResponseEntity<Map<String, Object>> applyPenalty(
             @PathVariable Long billId,
@@ -87,6 +99,11 @@ public class PenaltyController {
                 + ",\nA late-payment penalty of " + penaltyAmount.toPlainString()
                 + " FRW has been applied to bill " + saved.getBillNumber()
                 + ". New outstanding balance: " + saved.getOutstandingBalance().toPlainString() + " FRW.";
+        notificationRepository.save(Notification.builder()
+                .customer(saved.getCustomer())
+                .message(message)
+                .status(NotificationStatus.SENT)
+                .build());
         emailService.sendNotificationEmail(saved.getCustomer().getEmail(), "Utility Bill Penalty Applied", message);
 
         auditLogService.log("APPLY_PENALTY", "Bill", saved.getId(),

@@ -4,6 +4,7 @@ import com.wasac.billing.dto.ApiResponse;
 import com.wasac.billing.dto.AuthDtos;
 import com.wasac.billing.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@Tag(name = "Authentication", description = "Public authentication endpoints (no JWT required)")
+@Tag(name = "Authentication", description = "Signup, OTP, login, refresh, logout, and current-user endpoints")
 public class AuthController {
 
     private final AuthService authService;
@@ -54,6 +55,7 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @SecurityRequirement(name = "Bearer Authentication")
     @Operation(summary = "Logout", description = "Authenticated access. Blacklists the current JWT token.")
     public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request) {
         authService.logout(request.getHeader("Authorization"));
@@ -61,6 +63,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
+    @SecurityRequirement(name = "Bearer Authentication")
     @Operation(summary = "Get current user", description = "Authenticated access. Returns logged-in user profile.")
     public ResponseEntity<ApiResponse<AuthDtos.UserResponse>> me() {
         return ResponseEntity.ok(ApiResponse.success("Current user retrieved", authService.currentUser()));

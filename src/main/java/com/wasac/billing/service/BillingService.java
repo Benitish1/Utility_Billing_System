@@ -6,6 +6,8 @@ import java.util.List;
 
 public interface BillingService {
     BillingDtos.BillResponse generateBill(BillingDtos.GenerateBillRequest request);
+    BillingDtos.BillResponse resendBillEmail(Long id);
+    BillingDtos.BillResponse approveBill(Long id);
     BillingDtos.BillResponse getById(Long id);
     BillingDtos.BillResponse getByBillNumber(String billNumber);
     List<BillingDtos.BillResponse> getAll();
